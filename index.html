@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI區域開店觀測儀表板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;700;900&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* ── 設計代幣 ── 版面：固定頂欄 + 單欄捲動分區；SPA 療癒的玉綠為主色、暖金為尊榮點綴、象牙中性底 */
+:root{
+  --bg:#f4f1ea;            /* 象牙暖底 */
+  --surface:#ffffff;
+  --surface-2:#faf8f3;
+  --ink:#1c2420;          /* 近黑墨綠 */
+  --ink-soft:#56635c;
+  --line:#e3ddd0;
+  --jade:#0f6b5a;         /* 主色 玉綠 */
+  --jade-soft:#e2efe9;
+  --gold:#b08320;         /* 尊榮金 */
+  --gold-soft:#f3ead3;
+  --good:#1f7a4d;
+  --warn:#b4700f;
+  --crit:#b4452f;
+  --shadow:0 1px 2px rgba(28,36,32,.05),0 8px 28px -12px rgba(28,36,32,.18);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10161300;--bg:#101613;--surface:#172420;--surface-2:#13201c;--ink:#edf3ef;--ink-soft:#9fb0a7;
+  --line:#2a3a34;--jade:#4fc9ab;--jade-soft:#17322a;--gold:#dcb45a;--gold-soft:#2c2415;
+  --good:#58c88a;--warn:#e0a94a;--crit:#e8826b;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#101613;--surface:#172420;--surface-2:#13201c;--ink:#edf3ef;--ink-soft:#9fb0a7;
+  --line:#2a3a34;--jade:#4fc9ab;--jade-soft:#17322a;--gold:#dcb45a;--gold-soft:#2c2415;
+  --good:#58c88a;--warn:#e0a94a;--crit:#e8826b;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Noto Sans TC",system-ui,-apple-system,"Microsoft JhengHei",sans-serif;
+  line-height:1.6;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+h1,h2,h3,h4{font-family:"Noto Serif TC","Noto Sans TC",serif;text-wrap:balance;margin:0;line-height:1.25}
+.wrap{max-width:1160px;margin:0 auto;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px))}
+a{color:var(--jade)}
+
+/* 頂欄 */
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:color-mix(in srgb,var(--surface) 88%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:16px;padding-block:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+.brand .mk{width:34px;height:34px;border-radius:9px;background:linear-gradient(140deg,var(--jade),#13543f);display:grid;place-items:center;
+  color:#fff;font-weight:900;font-family:"Noto Serif TC",serif;box-shadow:var(--shadow)}
+.brand b{font-size:1.02rem;letter-spacing:.3px;display:block}
+.brand span{font-size:.72rem;color:var(--ink-soft);letter-spacing:.14em}
+.navlinks{display:flex;gap:4px;flex-wrap:wrap}
+.navlinks a{font-size:.82rem;color:var(--ink-soft);text-decoration:none;padding:6px 11px;border-radius:7px;font-weight:500}
+.navlinks a:hover{background:var(--jade-soft);color:var(--jade)}
+.themebtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;width:38px;height:36px;cursor:pointer;font-size:1rem}
+.themebtn:hover{border-color:var(--jade)}
+
+/* Hero */
+.hero{padding-block:46px 30px;border-bottom:1px solid var(--line);
+  background:radial-gradient(120% 140% at 85% -10%,var(--jade-soft),transparent 55%)}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.74rem;letter-spacing:.2em;color:var(--jade);font-weight:700;
+  background:var(--jade-soft);padding:5px 12px;border-radius:99px}
+.hero h1{font-size:clamp(2rem,5.2vw,3.3rem);font-weight:900;margin:18px 0 8px}
+.hero .lede{font-size:clamp(1rem,2.2vw,1.22rem);color:var(--ink-soft);max-width:60ch}
+.formula{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.formula .chip{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-weight:700;font-size:.9rem;box-shadow:var(--shadow)}
+.formula .chip em{font-style:normal;color:var(--gold)}
+.statstrip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px}
+.statstrip .s{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:15px 16px;box-shadow:var(--shadow)}
+.statstrip .s b{display:block;font-family:"Noto Serif TC",serif;font-size:1.72rem;font-weight:900;color:var(--jade);line-height:1}
+.statstrip .s small{display:block;color:var(--ink-soft);font-size:.78rem;margin-top:7px}
+
+section{padding-block:40px;border-bottom:1px solid var(--line);scroll-margin-top:76px}
+.sec-head{margin-bottom:22px}
+.sec-head .k{font-size:.74rem;letter-spacing:.2em;color:var(--gold);font-weight:700}
+.sec-head h2{font-size:clamp(1.4rem,3.4vw,2rem);font-weight:900;margin:6px 0 6px}
+.sec-head p{color:var(--ink-soft);max-width:66ch;margin:0}
+
+/* Navigator */
+.nav-grid{display:grid;grid-template-columns:360px 1fr;gap:22px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.panel .ph{padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;font-weight:700}
+.panel .pb{padding:18px}
+.field{margin-bottom:15px}
+.field label{display:flex;justify-content:space-between;align-items:baseline;font-size:.84rem;font-weight:700;margin-bottom:6px}
+.field label .v{color:var(--jade);font-family:"Noto Serif TC",serif;font-size:1rem}
+.field label .u{color:var(--ink-soft);font-weight:500;font-size:.76rem}
+.field input[type=range]{width:100%;accent-color:var(--jade);height:4px}
+.field select,.field input[type=number]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;
+  background:var(--surface-2);color:var(--ink);font:inherit;font-weight:600}
+.field select:focus,.field input:focus{outline:2px solid var(--jade);outline-offset:1px;border-color:var(--jade)}
+.assume{font-size:.74rem;color:var(--ink-soft);border-top:1px dashed var(--line);padding-top:12px;margin-top:4px}
+.assume b{color:var(--ink)}
+
+/* 推薦卡 */
+.reco{background:linear-gradient(135deg,var(--jade),#0c4e3e);color:#fff;border-radius:14px;padding:18px 20px;margin-bottom:18px;box-shadow:var(--shadow)}
+.reco .rk{font-size:.72rem;letter-spacing:.18em;opacity:.8;font-weight:700}
+.reco .rt{font-family:"Noto Serif TC",serif;font-size:1.7rem;font-weight:900;margin:4px 0}
+.reco .rd{font-size:.88rem;opacity:.92}
+.out-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.metric{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:14px}
+.metric .ml{font-size:.76rem;color:var(--ink-soft);font-weight:600}
+.metric .mv{font-family:"Noto Serif TC",serif;font-size:1.44rem;font-weight:900;margin-top:3px;line-height:1.1}
+.metric .mv small{font-size:.72rem;font-weight:600;color:var(--ink-soft)}
+.metric.hot{background:var(--gold-soft);border-color:var(--gold)}
+.metric.hot .mv{color:var(--gold)}
+
+.formulabox{margin-top:16px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:.8rem;color:var(--ink-soft)}
+.formulabox code{font-family:"Noto Sans TC",monospace;color:var(--ink);background:var(--jade-soft);padding:1px 6px;border-radius:5px;font-weight:600}
+
+.risks{margin-top:16px;display:grid;gap:9px}
+.risk{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:10px;font-size:.85rem;border:1px solid}
+.risk.ok{background:color-mix(in srgb,var(--good) 12%,transparent);border-color:color-mix(in srgb,var(--good) 40%,transparent)}
+.risk.warn{background:color-mix(in srgb,var(--warn) 12%,transparent);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.risk.crit{background:color-mix(in srgb,var(--crit) 12%,transparent);border-color:color-mix(in srgb,var(--crit) 40%,transparent)}
+.risk .dot{width:9px;height:9px;border-radius:99px;margin-top:6px;flex:none}
+.risk.ok .dot{background:var(--good)}.risk.warn .dot{background:var(--warn)}.risk.crit .dot{background:var(--crit)}
+
+/* 情境模擬 */
+.scn{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.scn button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:8px 15px;
+  font:inherit;font-weight:600;font-size:.84rem;cursor:pointer}
+.scn button:hover{border-color:var(--jade);color:var(--jade)}
+.scn button.on{background:var(--jade);color:#fff;border-color:var(--jade)}
+.scn-out{margin-top:14px;font-size:.88rem;color:var(--ink-soft)}
+.delta{font-weight:700;font-family:"Noto Serif TC",serif}
+.delta.up{color:var(--crit)}.delta.down{color:var(--good)}
+
+/* 地圖 */
+.map-grid{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:stretch}
+.mapframe{border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);min-height:420px;background:var(--surface-2)}
+.mapframe iframe{width:100%;height:100%;min-height:420px;border:0;display:block}
+.citylist{display:grid;gap:10px;align-content:start}
+.citycard{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 15px;cursor:pointer;box-shadow:var(--shadow);font:inherit;color:var(--ink)}
+.citycard:hover{border-color:var(--jade)}
+.citycard.on{border-color:var(--jade);box-shadow:0 0 0 2px var(--jade) inset,var(--shadow)}
+.citycard .cc-top{display:flex;justify-content:space-between;align-items:baseline}
+.citycard .cn{font-weight:900;font-size:1.05rem;font-family:"Noto Serif TC",serif}
+.citycard .cscore{font-family:"Noto Serif TC",serif;font-weight:900;font-size:1.25rem;color:var(--jade)}
+.citycard .cmeta{font-size:.76rem;color:var(--ink-soft);margin-top:2px}
+.radar-note{font-size:.74rem;color:var(--ink-soft);margin-top:4px}
+.dims{display:grid;grid-template-columns:repeat(3,1fr);gap:9px 14px;margin-top:18px}
+.dim{font-size:.78rem}
+.dim .dl{display:flex;justify-content:space-between;color:var(--ink-soft);font-weight:600}
+.dim .bar{height:7px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:4px}
+.dim .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--jade),var(--gold))}
+
+/* 展店衝突檢測 */
+.conflict-grid{display:grid;grid-template-columns:430px 1fr;gap:20px;align-items:start}
+#cmap{min-height:540px;height:100%;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);background:var(--surface-2);z-index:0}
+.addrbar{display:flex;gap:8px}
+.addrbar input{flex:1;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--ink);font:inherit;font-weight:600}
+.addrbar input:focus{outline:2px solid var(--jade);outline-offset:1px;border-color:var(--jade)}
+.btn{border:0;background:var(--jade);color:#fff;border-radius:9px;padding:0 17px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn:hover{background:#0c5848}.btn:disabled{opacity:.6;cursor:default}
+.btn.sm{padding:8px 13px;font-size:.82rem}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--jade);color:var(--jade)}
+.conflict-result{margin-top:16px}
+.verdict{border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:center;font-weight:700;line-height:1.4}
+.verdict.clash{background:color-mix(in srgb,var(--crit) 13%,transparent);border:1px solid var(--crit);color:var(--crit)}
+.verdict.clear{background:color-mix(in srgb,var(--good) 13%,transparent);border:1px solid var(--good);color:var(--good)}
+.verdict .big{font-family:"Noto Serif TC",serif;font-size:1.6rem;line-height:1;flex:none}
+.clash-list{display:grid;gap:8px;margin-top:11px}
+.clash-item{display:grid;grid-template-columns:1fr auto;gap:2px 12px;background:var(--surface-2);border:1px solid var(--line);border-left:4px solid var(--crit);border-radius:10px;padding:10px 13px}
+.clash-item .cn{font-weight:700}
+.clash-item .ca{font-size:.76rem;color:var(--ink-soft);grid-column:1/2}
+.clash-item .cd{grid-row:1/3;align-self:center;font-family:"Noto Serif TC",serif;font-weight:900;color:var(--crit);text-align:right;font-size:1.05rem}
+.clash-item .cd small{display:block;font-size:.66rem;color:var(--ink-soft);font-weight:600}
+.store-list{display:grid;gap:7px;max-height:220px;overflow:auto;margin-bottom:13px}
+.store-row{display:flex;align-items:center;gap:10px;font-size:.84rem;padding:8px 11px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px}
+.store-row .sn{font-weight:700;flex:none}
+.store-row .sa{color:var(--ink-soft);font-size:.74rem;margin-left:auto;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50%}
+.store-row .seedtag{font-size:.64rem;color:var(--gold);border:1px solid var(--gold);border-radius:5px;padding:0 4px;flex:none}
+.store-row button{border:0;background:transparent;color:var(--crit);cursor:pointer;font-size:1.1rem;line-height:1;flex:none;padding:2px 4px}
+.addrow{display:grid;gap:8px}
+.addrow input,.addrow textarea{padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--ink);font:inherit;font-weight:600;width:100%}
+.addrow textarea{min-height:66px;resize:vertical;font-weight:500;font-size:.82rem}
+.addrow input:focus,.addrow textarea:focus{outline:2px solid var(--jade);outline-offset:1px;border-color:var(--jade)}
+.muted{color:var(--ink-soft);font-size:.78rem;margin:0}
+details.bulk{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}
+details.bulk summary{cursor:pointer;font-weight:700;font-size:.84rem;color:var(--jade)}
+.leaflet-popup-content{font-family:"Noto Sans TC",sans-serif;font-size:.86rem}
+.leaflet-container{font-family:"Noto Sans TC",sans-serif}
+@media(max-width:920px){.conflict-grid{grid-template-columns:1fr}#cmap{min-height:380px;order:-1}}
+
+/* 店型卡 */
+.types{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.tcard .tbadge{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-family:"Noto Serif TC",serif;font-weight:900;font-size:1.3rem;color:#fff;background:var(--jade)}
+.tcard[data-t="A"] .tbadge{background:#0f6b5a}.tcard[data-t="B"] .tbadge{background:#3a7d9b}
+.tcard[data-t="C"] .tbadge{background:#b08320}.tcard[data-t="D"] .tbadge{background:#8a4b7a}
+.tcard h3{font-size:1.08rem;margin:12px 0 2px}
+.tcard .pos{font-size:.8rem;color:var(--jade);font-weight:700;margin-bottom:8px}
+.tcard p{font-size:.84rem;color:var(--ink-soft);margin:0 0 12px}
+.tcard ul{list-style:none;padding:0;margin:auto 0 0;border-top:1px solid var(--line);padding-top:10px;display:grid;gap:5px}
+.tcard li{display:flex;justify-content:space-between;font-size:.82rem}
+.tcard li span{color:var(--ink-soft)}.tcard li b{font-family:"Noto Serif TC",serif}
+
+/* 90天 + KPI */
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.timeline{display:grid;gap:12px}
+.tl{display:grid;grid-template-columns:64px 1fr;gap:14px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+.tl .day{font-family:"Noto Serif TC",serif;font-weight:900;color:var(--gold);font-size:1.05rem}
+.tl h4{font-size:.95rem;margin-bottom:2px}
+.tl p{font-size:.82rem;color:var(--ink-soft);margin:0}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px;box-shadow:var(--shadow)}
+.kpi b{display:block;font-family:"Noto Serif TC",serif;font-size:1.55rem;font-weight:900;color:var(--jade)}
+.kpi small{color:var(--ink-soft);font-size:.8rem}
+
+footer{padding-block:28px 40px;color:var(--ink-soft);font-size:.8rem}
+footer .disc{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 15px;margin-bottom:14px}
+
+@media(max-width:920px){
+  .nav-grid,.map-grid,.cols2{grid-template-columns:1fr}
+  .types{grid-template-columns:1fr 1fr}
+  .statstrip{grid-template-columns:1fr 1fr}
+  .mapframe{min-height:320px}.mapframe iframe{min-height:320px}
+}
+@media(max-width:560px){
+  .out-grid{grid-template-columns:1fr 1fr}
+  .types{grid-template-columns:1fr}
+  .dims{grid-template-columns:1fr 1fr}
+  .kpis{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">
+      <div class="mk">V</div>
+      <div><b>AI區域開店觀測儀表板</b><span>VIVISPA 城市獲利導航</span></div>
+    </div>
+    <nav class="navlinks">
+      <a href="#map">城市機會地圖</a>
+      <a href="#conflict">展店衝突檢測</a>
+      <a href="#navigator">AI Profit Navigator</a>
+      <a href="#types">四大店型</a>
+      <a href="#validate">90天驗證</a>
+      <a href="#kpi">KPI</a>
+    </nav>
+    <button class="themebtn" id="theme" title="切換深／淺色">◐</button>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <span class="eyebrow">方針3 · 大中華獲利模組賦能</span>
+    <h1>城市獲利導航</h1>
+    <p class="lede">一城一模型 × 一店一損益 × AI 開店模擬器。以標準獲利模型降低展店風險，讓加盟決策從經驗判斷升級為數據模擬。</p>
+    <div class="formula">
+      <div class="chip">客流 <em>×</em> 成交 <em>×</em> 客單 <em>×</em> 回購 <em>×</em> 人效 <em>−</em> 營運成本</div>
+    </div>
+    <div class="statstrip">
+      <div class="s"><b>6</b><small>城市／市場模型</small></div>
+      <div class="s"><b>4</b><small>標準獲利店型</small></div>
+      <div class="s"><b>≥90%</b><small>模型採用率目標</small></div>
+      <div class="s"><b>≥15%</b><small>損平期縮短目標</small></div>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <!-- 城市機會地圖 -->
+  <section id="map">
+    <div class="sec-head">
+      <div class="k">模組一 · 城市評估面向</div>
+      <h2>城市機會地圖</h2>
+      <p>先建立「城市機會評分」，再談店型。點選城市查看消費力、市場量、成本、競爭、人才與品牌基礎六大面向，地圖同步定位該市場。</p>
+    </div>
+    <div class="map-grid">
+      <div class="mapframe"><iframe id="gmap" title="城市地圖" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+      <div class="citylist" id="citylist"></div>
+    </div>
+    <div class="dims" id="dims"></div>
+  </section>
+
+  <!-- 展店衝突檢測 -->
+  <section id="conflict">
+    <div class="sec-head">
+      <div class="k">展店決策 · 商圈保護</div>
+      <h2>展店衝突檢測</h2>
+      <p>輸入預計展店地址，系統自動定位後，比對現有 VIVISPA 加盟店的商圈保護半徑，列出直線距離過近、可能衝突的門店，並在地圖上標示保護範圍。</p>
+    </div>
+    <div class="conflict-grid">
+      <div>
+        <div class="panel">
+          <div class="ph">📍 預計展店地點</div>
+          <div class="pb">
+            <div class="field" style="margin-bottom:12px">
+              <label>地址或座標 <span class="u">可輸入「緯度,經度」</span></label>
+              <div class="addrbar">
+                <input id="c-addr" type="text" placeholder="例：台中市西屯區市政路" autocomplete="off">
+                <button class="btn" id="c-go">檢測</button>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom:6px">
+              <label>商圈保護半徑 <span class="v" id="c-rlab">2 公里</span></label>
+              <input type="range" id="c-radius" min="500" max="5000" step="100" value="2000">
+            </div>
+            <p class="muted">定位服務：OpenStreetMap Nominatim（免金鑰）。衝突判定＝預計地點與門店直線距離 &lt; 保護半徑。</p>
+            <div class="conflict-result" id="c-result"><p class="muted">輸入地址後按「檢測」。</p></div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:18px">
+          <div class="ph">🏬 現有加盟店清單 <span class="u" style="font-weight:500;color:var(--ink-soft);font-size:.78rem;margin-left:auto" id="c-count"></span></div>
+          <div class="pb">
+            <div class="store-list" id="c-stores"></div>
+            <div class="addrow">
+              <input id="c-sname" type="text" placeholder="門店名稱（例：VIVISPA 台南中西店）">
+              <input id="c-saddr" type="text" placeholder="門店地址或「緯度,經度」">
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn sm" id="c-add">新增門店</button>
+                <button class="btn sm ghost" id="c-reset">重設為示意資料</button>
+              </div>
+              <p class="muted" id="c-addstatus"></p>
+            </div>
+            <details class="bulk">
+              <summary>整批匯入門店</summary>
+              <p class="muted" style="margin:8px 0">每行一筆，格式：<code>名稱,地址</code>　或　<code>名稱,緯度,經度</code>（後者免定位、較快）。</p>
+              <textarea id="c-bulk" placeholder="VIVISPA 台北信義店,台北市信義區松仁路100號&#10;VIVISPA 台中七期店,24.1612,120.6418"></textarea>
+              <div style="margin-top:8px"><button class="btn sm" id="c-import">匯入</button> <span class="muted" id="c-importstatus"></span></div>
+            </details>
+          </div>
+        </div>
+      </div>
+      <div id="cmap"></div>
+    </div>
+  </section>
+
+  <!-- AI Profit Navigator -->
+  <section id="navigator">
+    <div class="sec-head">
+      <div class="k">模組五 · AI 應用</div>
+      <h2>AI Profit Navigator</h2>
+      <p>輸入城市、坪數、租金、預算與人員，即時產出推薦店型、損平營收、損平會員數、每人每日目標、回本期與風險提示。所有數字皆由下方公式即時計算，為模型估算值。</p>
+    </div>
+    <div class="nav-grid">
+      <div class="panel">
+        <div class="ph">🧭 輸入條件</div>
+        <div class="pb">
+          <div class="field">
+            <label>城市市場 <span class="u">自動帶入租金／客單基準</span></label>
+            <select id="in-city"></select>
+          </div>
+          <div class="field">
+            <label>建議坪數 <span class="v" id="lab-size">30 坪</span></label>
+            <input type="range" id="in-size" min="12" max="60" step="1" value="30">
+          </div>
+          <div class="field">
+            <label>月租金 <span class="v" id="lab-rent">9 萬</span></label>
+            <input type="range" id="in-rent" min="3" max="30" step="0.5" value="9">
+          </div>
+          <div class="field">
+            <label>目標客單 <span class="v" id="lab-tick">3,500 元</span></label>
+            <input type="range" id="in-tick" min="2000" max="6500" step="100" value="3500">
+          </div>
+          <div class="field">
+            <label>人員配置 <span class="v" id="lab-staff">5 人</span></label>
+            <input type="range" id="in-staff" min="2" max="12" step="1" value="5">
+          </div>
+          <div class="field">
+            <label>投資預算 <span class="u">萬元</span></label>
+            <input type="number" id="in-budget" value="350" min="50" step="10">
+          </div>
+          <div class="assume">
+            模型假設：貢獻率 <b>60%</b>（材料／耗材／刷卡／獎金約 40%）· 人均月成本 <b>5 萬</b> · 會員月均回購 <b>1.3 次</b> · 月工作天 <b>26 天</b> · 裝修 <b>8 萬／坪</b>。
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="reco" id="reco">
+          <div class="rk">推薦店型</div>
+          <div class="rt" id="reco-t">—</div>
+          <div class="rd" id="reco-d">—</div>
+        </div>
+        <div class="out-grid" id="outs"></div>
+        <div class="formulabox">
+          <strong>計算邏輯（損平倒推）</strong><br>
+          月固定成本 = 租金 + 人數×<code>5萬</code> + 雜支（租金×0.3+<code>3萬</code>）<br>
+          月損平營收 = 月固定成本 ÷ <code>貢獻率60%</code> ·
+          損平會員數 = 損平營收 ÷ 客單 ÷ <code>回購1.3</code><br>
+          每日來客 = 損平消費次數 ÷ <code>26天</code> ·
+          回本期 = 初期投資 ÷ 月淨利（目標營收設損平×1.4）
+        </div>
+        <div class="risks" id="risks"></div>
+
+        <div class="panel" style="margin-top:20px">
+          <div class="ph">🎛️ AI 情境模擬 <span class="u" style="font-weight:500;color:var(--ink-soft);font-size:.76rem;margin-left:auto">可多選疊加</span></div>
+          <div class="pb">
+            <div class="scn" id="scn">
+              <button data-s="rent">租金 +20%</button>
+              <button data-s="staff">少 1 位美容師</button>
+              <button data-s="tick">客單 → 4,000</button>
+            </div>
+            <div class="scn-out" id="scn-out">選擇情境，比較損平營收與回本期如何改變。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 四大店型 -->
+  <section id="types">
+    <div class="sec-head">
+      <div class="k">模組二 · 四大標準店型</div>
+      <h2>四大標準店型與獲利卡</h2>
+      <p>每個店型做成一頁即可看懂的 Profit Card，實際數字由財務模型驗證，並隨城市成本、人力與租金區間更新。</p>
+    </div>
+    <div class="types" id="types"></div>
+  </section>
+
+  <!-- 90天驗證 + 案例 -->
+  <section id="validate">
+    <div class="sec-head">
+      <div class="k">模組四 · 五 · 六</div>
+      <h2>損平倒推 × 90 天模型驗證</h2>
+      <p>開業前先有模型，開業後以 30／60／90 天節點驗證實際與模型差距；差距超過 15～20% 立即分析市場、客流、成交、價格或人力問題。</p>
+    </div>
+    <div class="cols2">
+      <div class="timeline">
+        <div class="tl"><div class="day">Day 30</div><div><h4>客流</h4><p>檢查開幕聲量、地區曝光、預約與到店效率。</p></div></div>
+        <div class="tl"><div class="day">Day 60</div><div><h4>成交 ＋ 回購</h4><p>檢查諮詢成交率、方案接受度、初次回訪與二次預約。</p></div></div>
+        <div class="tl"><div class="day">Day 90</div><div><h4>營收 ＋ 人效 ＋ 損益</h4><p>檢查營收、人效、租金率與損益結構是否符合模型。</p></div></div>
+        <div class="tl"><div class="day">倒推</div><div><h4>每日可執行目標</h4><p>月目標 ÷ 客單 = 月消費次數；再除工作天與人數，得每人每日服務目標。</p></div></div>
+      </div>
+      <div>
+        <div class="panel"><div class="ph">🏆 年度最佳獲利案例庫</div><div class="pb">
+          <p style="margin:0 0 10px;color:var(--ink-soft);font-size:.88rem">每季選出最佳坪效、人效、回購、新店與投報率，拆解為 Success Playbook：</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span class="chip" style="font-size:.8rem;background:var(--jade-soft);border:1px solid var(--line);padding:6px 11px;border-radius:8px;font-weight:600">市場</span>
+            <span class="chip" style="font-size:.8rem;background:var(--jade-soft);border:1px solid var(--line);padding:6px 11px;border-radius:8px;font-weight:600">問題</span>
+            <span class="chip" style="font-size:.8rem;background:var(--jade-soft);border:1px solid var(--line);padding:6px 11px;border-radius:8px;font-weight:600">方法</span>
+            <span class="chip" style="font-size:.8rem;background:var(--jade-soft);border:1px solid var(--line);padding:6px 11px;border-radius:8px;font-weight:600">數據</span>
+            <span class="chip" style="font-size:.8rem;background:var(--jade-soft);border:1px solid var(--line);padding:6px 11px;border-radius:8px;font-weight:600">SOP</span>
+            <span class="chip" style="font-size:.8rem;background:var(--jade-soft);border:1px solid var(--line);padding:6px 11px;border-radius:8px;font-weight:600">可複製條件</span>
+          </div>
+          <p style="margin:14px 0 0;color:var(--ink-soft);font-size:.82rem">年底彙整為《VIVISPA 大中華 SPA 獲利白皮書》，作為加盟、經銷商與展店決策工具。</p>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI -->
+  <section id="kpi" style="border-bottom:0">
+    <div class="sec-head">
+      <div class="k">模組九 · KPI 衡量</div>
+      <h2>年度目標與衡量指標</h2>
+      <p>Q1 建模 → Q2 驗證 → Q3 複製 → Q4 公開與白皮書發布。</p>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><b>≥15%</b><small>新店平均損平期縮短</small></div>
+      <div class="kpi"><b>≥90%</b><small>標準模型採用率</small></div>
+      <div class="kpi"><b>≥80%</b><small>新店 90 天達標率</small></div>
+      <div class="kpi"><b>≥30%</b><small>錯誤展店／選址案件下降</small></div>
+      <div class="kpi"><b>±15%</b><small>城市模型預估誤差控制</small></div>
+      <div class="kpi"><b>≥80%</b><small>AI 模擬器使用率</small></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div class="disc">⚠️ 本儀表板之城市評分、租金與客單基準、財務試算結果皆為 <b>示意與模型估算值</b>，用於情境模擬與加盟溝通；實際展店請以當地財務模型與實地商圈數據驗證。</div>
+  VIVISPA 大中華事業 · 城市獲利導航 · 提案一「哪裡可以賺、要怎麼賺」
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+"use strict";
+/* ── 城市資料（示意）：租金=30坪基準(萬) 客單基準(元) 六面向0-100(成本/競爭已換算為越高越佳) ── */
+const CITIES=[
+ {id:"台中",q:"台中市",rent:9, tick:3500, score:76, d:{消費力:80,市場量:78,成本:65,競爭:70,人才:72,品牌:75}},
+ {id:"台北",q:"台北市",rent:12,tick:4000, score:73, d:{消費力:95,市場量:90,成本:35,競爭:40,人才:70,品牌:85}},
+ {id:"高雄",q:"高雄市",rent:7, tick:3200, score:70, d:{消費力:72,市場量:70,成本:72,競爭:68,人才:65,品牌:70}},
+ {id:"上海",q:"上海市",rent:18,tick:4500, score:68, d:{消費力:92,市場量:95,成本:30,競爭:35,人才:55,品牌:60}},
+ {id:"成都",q:"成都市",rent:8, tick:3300, score:72, d:{消費力:78,市場量:88,成本:68,競爭:60,人才:62,品牌:50}},
+ {id:"深圳",q:"深圳市",rent:16,tick:4200, score:69, d:{消費力:90,市場量:92,成本:32,競爭:45,人才:58,品牌:55}},
+];
+const DIMS=["消費力","市場量","成本","競爭","人才","品牌"];
+const DIMLABEL={成本:"成本（越高越省）",競爭:"競爭（越高越鬆）",品牌:"品牌基礎"};
+
+/* ── 店型（Profit Card 示意）── */
+const TYPES=[
+ {t:"A",name:"精品旗艦 SPA",pos:"高端商圈 · 高客單 · 品牌展示",desc:"不追求大量來客，而是經營高 CLV 顧客。",size:"35～45 坪",ppl:"6 人",inv:"500 萬",tick:"5,000+"},
+ {t:"B",name:"社區會員 SPA",pos:"住宅區 · 成熟社區 · 高密度生活圈",desc:"以 100～300 位核心會員支撐穩定營收，強調回購與低獲客成本。",size:"25～35 坪",ppl:"5 人",inv:"300 萬",tick:"3,200"},
+ {t:"C",name:"商辦快療 SPA",pos:"商辦區 · 科技園區 · 午休下班療癒",desc:"高頻、短療程、高坪效；肩頸、頭療、快速美容為主力。",size:"15～25 坪",ppl:"4 人",inv:"200 萬",tick:"1,800"},
+ {t:"D",name:"複合療癒 SPA",pos:"高客單 · 複合需求市場",desc:"整合美容美體、頭皮療癒與高價值療程，提升客單與交叉銷售。",size:"45 坪+",ppl:"7 人",inv:"650 萬",tick:"4,500"},
+];
+
+/* 模型常數 */
+const K={contrib:0.60,perStaff:5,miscRate:0.3,miscFix:3,repurchase:1.3,workdays:26,targetMul:1.4,fitPerPing:8,openFee:50};
+const wan=n=>Math.round(n).toLocaleString("zh-Hant");
+const wan1=n=>(Math.round(n*10)/10).toLocaleString("zh-Hant");
+
+let cur=0; // 目前城市 index
+const scn={rent:false,staff:false,tick:false};
+
+/* 計算核心（回傳萬元/人數等） */
+function compute(inp){
+  const fixed = inp.rent + inp.staff*K.perStaff + (inp.rent*K.miscRate + K.miscFix); // 萬/月
+  const beRev = fixed / K.contrib;                     // 月損平營收(萬)
+  const beVisits = (beRev*10000) / inp.tick;           // 損平月消費次數
+  const beMembers = beVisits / K.repurchase;           // 損平會員數
+  const dailyVisits = beVisits / K.workdays;           // 每日來客(損平)
+  const perStaffDaily = dailyVisits / inp.staff;       // 每人每日
+  const targetRev = beRev * K.targetMul;               // 目標月營收(萬)
+  const netMonthly = (targetRev - beRev) * K.contrib;  // 目標月淨利(萬)
+  const initInv = inp.size*K.fitPerPing + inp.rent*3 + K.openFee; // 初期投資(萬)
+  const payback = netMonthly>0 ? initInv/netMonthly : Infinity;   // 回本期(月)
+  const rentRatio = inp.rent/beRev;                    // 租金佔損平營收
+  return {fixed,beRev,beMembers,dailyVisits,perStaffDaily,targetRev,netMonthly,initInv,payback,rentRatio};
+}
+
+/* 推薦店型 */
+function recommend(inp){
+  const s={A:0,B:0,C:0,D:0};
+  if(inp.tick>=4500)s.A+=3; if(inp.tick>=3800)s.A+=1; if(inp.size>=35)s.A+=1; if(inp.rent>=12)s.A+=1;
+  if(inp.tick>=2800&&inp.tick<=3800)s.B+=2; if(inp.size>=25&&inp.size<=35)s.B+=2; if(inp.rent>=6&&inp.rent<=10)s.B+=1;
+  if(inp.size<=25)s.C+=2; if(inp.tick<=3000)s.C+=2; if(inp.staff>=5)s.C+=1;
+  if(inp.size>=42)s.D+=3; if(inp.tick>=3800)s.D+=1; if(inp.staff>=7)s.D+=1;
+  let best="B",bv=-1; for(const k in s){if(s[k]>bv){bv=s[k];best=k;}}
+  return TYPES.find(x=>x.t===best);
+}
+
+function readInputs(apply){
+  const inp={
+    rent:+rent.value, size:+size.value, tick:+tick.value, staff:+staff.value, budget:+budget.value
+  };
+  if(apply){
+    if(scn.rent) inp.rent=inp.rent*1.2;
+    if(scn.staff) inp.staff=Math.max(1,inp.staff-1);
+    if(scn.tick) inp.tick=4000;
+  }
+  return inp;
+}
+
+function render(){
+  // labels
+  labSize.textContent=size.value+" 坪";
+  labRent.textContent=wan1(+rent.value)+" 萬";
+  labTick.textContent=(+tick.value).toLocaleString()+" 元";
+  labStaff.textContent=staff.value+" 人";
+
+  const base=readInputs(false);
+  const r=compute(base);
+  const rec=recommend(base);
+
+  recoT.textContent=rec.t+"｜"+rec.name;
+  recoD.textContent=rec.pos+" — "+rec.desc;
+
+  const payTxt = r.payback===Infinity?"—":wan1(r.payback)+" 月";
+  outs.innerHTML=`
+    ${m("月固定成本",wan(r.fixed),"萬／月")}
+    ${m("月損平營收",wan(r.beRev),"萬／月",true)}
+    ${m("損平會員數",wan(r.beMembers),"位")}
+    ${m("每日來客（損平）",wan1(r.dailyVisits),"客／日")}
+    ${m("每人每日目標",wan1(r.perStaffDaily),"客／人")}
+    ${m("目標月營收",wan(r.targetRev),"萬／月")}
+    ${m("目標月淨利",wan(r.netMonthly),"萬／月")}
+    ${m("預估回本期",payTxt,"",true)}
+    ${m("初期投資估算",wan(r.initInv),"萬")}
+  `;
+
+  // risks
+  const rk=[];
+  if(r.rentRatio>0.18) rk.push(["crit","租金壓力偏高",`租金佔損平營收 ${(r.rentRatio*100).toFixed(0)}%（建議 ≤18%），可下修坪數或換商圈。`]);
+  else rk.push(["ok","租金結構健康",`租金佔損平營收 ${(r.rentRatio*100).toFixed(0)}%，在建議區間內。`]);
+  if(r.payback>30) rk.push(["crit","回本期過長",`估 ${wan1(r.payback)} 月（>30 月），需提升客單或降低初期投資。`]);
+  else if(r.payback>24) rk.push(["warn","回本期偏長",`估 ${wan1(r.payback)} 月，接近上限，建議加速爬坡。`]);
+  else rk.push(["ok","回本期合理",`估 ${wan1(r.payback)} 月。`]);
+  if(r.perStaffDaily>4.5) rk.push(["warn","人力偏吃緊",`每人每日 ${wan1(r.perStaffDaily)} 客，旺季恐滿載，建議增員或排班調整。`]);
+  if(base.budget<r.initInv) rk.push(["crit","預算不足",`預算 ${wan(base.budget)} 萬 < 估算初期投資 ${wan(r.initInv)} 萬，缺口 ${wan(r.initInv-base.budget)} 萬。`]);
+  else rk.push(["ok","預算足夠",`預算 ${wan(base.budget)} 萬 ≥ 估算初期投資 ${wan(r.initInv)} 萬。`]);
+  risks.innerHTML=rk.map(x=>`<div class="risk ${x[0]}"><span class="dot"></span><div><b>${x[1]}</b> — ${x[2]}</div></div>`).join("");
+
+  renderScenario(base,r);
+}
+function m(l,v,u,hot){return `<div class="metric${hot?' hot':''}"><div class="ml">${l}</div><div class="mv">${v}${u?` <small>${u}</small>`:""}</div></div>`;}
+
+function renderScenario(base,baseR){
+  const any=scn.rent||scn.staff||scn.tick;
+  if(!any){scnOut.innerHTML="選擇情境，比較損平營收與回本期如何改變。";return;}
+  const s=compute(readInputs(true));
+  const dRev=s.beRev-baseR.beRev;
+  const dPay=(s.payback===Infinity||baseR.payback===Infinity)?null:s.payback-baseR.payback;
+  const arrow=x=>x>0?`<span class="delta up">▲ +${wan1(Math.abs(x))}</span>`:x<0?`<span class="delta down">▼ −${wan1(Math.abs(x))}</span>`:`<span class="delta">持平</span>`;
+  scnOut.innerHTML=
+    `套用情境後：月損平營收 <b class="delta">${wan(s.beRev)} 萬</b>（${arrow(dRev)} 萬）`+
+    (dPay===null?"":` · 回本期 <b class="delta">${wan1(s.payback)} 月</b>（${arrow(dPay)} 月）`)+
+    ` · 每人每日 <b class="delta">${wan1(s.perStaffDaily)} 客</b>`;
+}
+
+/* 地圖 */
+function setMap(q){ gmap.src=`https://www.google.com/maps?q=${encodeURIComponent(q+" SPA 美容")}&z=12&hl=zh-TW&output=embed`; }
+
+/* 城市清單 + 面向 */
+function selectCity(i){
+  cur=i; const c=CITIES[i];
+  setMap(c.q);
+  // 帶入基準
+  rent.value=c.rent; tick.value=c.tick;
+  document.querySelectorAll(".citycard").forEach((el,idx)=>el.classList.toggle("on",idx===i));
+  dims.innerHTML=DIMS.map(d=>`<div class="dim"><div class="dl"><span>${DIMLABEL[d]||d}</span><b>${c.d[d]}</b></div><div class="bar"><i style="width:${c.d[d]}%"></i></div></div>`).join("");
+  render();
+}
+
+/* init DOM refs */
+const size=document.getElementById("in-size"),rent=document.getElementById("in-rent"),
+ tick=document.getElementById("in-tick"),staff=document.getElementById("in-staff"),
+ budget=document.getElementById("in-budget"),citySel=document.getElementById("in-city"),
+ labSize=document.getElementById("lab-size"),labRent=document.getElementById("lab-rent"),
+ labTick=document.getElementById("lab-tick"),labStaff=document.getElementById("lab-staff"),
+ recoT=document.getElementById("reco-t"),recoD=document.getElementById("reco-d"),
+ outs=document.getElementById("outs"),risks=document.getElementById("risks"),
+ dims=document.getElementById("dims"),scnOut=document.getElementById("scn-out"),gmap=document.getElementById("gmap");
+
+// 城市卡
+document.getElementById("citylist").innerHTML=CITIES.map((c,i)=>
+ `<button class="citycard" data-i="${i}"><div class="cc-top"><span class="cn">${c.id}</span><span class="cscore">${c.score}</span></div>
+  <div class="cmeta">機會評分 · 租金基準 ${c.rent} 萬 · 客單 ${c.tick.toLocaleString()} 元</div></button>`).join("");
+document.querySelectorAll(".citycard").forEach(el=>el.addEventListener("click",()=>selectCity(+el.dataset.i)));
+
+// 下拉
+citySel.innerHTML=CITIES.map((c,i)=>`<option value="${i}">${c.id}（機會評分 ${c.score}）</option>`).join("");
+citySel.addEventListener("change",()=>{ selectCity(+citySel.value); });
+
+// 店型
+document.getElementById("types").innerHTML=TYPES.map(t=>
+ `<div class="tcard" data-t="${t.t}"><div class="tbadge">${t.t}</div>
+   <h3>${t.name}</h3><div class="pos">${t.pos}</div><p>${t.desc}</p>
+   <ul><li><span>建議坪數</span><b>${t.size}</b></li><li><span>建議人數</span><b>${t.ppl}</b></li>
+   <li><span>初期投資</span><b>${t.inv}</b></li><li><span>目標客單</span><b>${t.tick}</b></li></ul></div>`).join("");
+
+// 輸入事件
+[size,rent,tick,staff,budget].forEach(el=>el.addEventListener("input",()=>{ render(); }));
+
+// 情境
+document.querySelectorAll("#scn button").forEach(b=>b.addEventListener("click",()=>{
+  const k=b.dataset.s; scn[k]=!scn[k]; b.classList.toggle("on",scn[k]); render();
+}));
+
+// 主題切換
+const themeBtn=document.getElementById("theme");
+function applyTheme(t){ if(t)document.documentElement.setAttribute("data-theme",t); else document.documentElement.removeAttribute("data-theme"); }
+try{const saved=localStorage.getItem("vivispa-theme"); if(saved)applyTheme(saved);}catch(e){}
+themeBtn.addEventListener("click",()=>{
+  const isDark=matchMedia("(prefers-color-scheme:dark)").matches;
+  const cur=document.documentElement.getAttribute("data-theme");
+  const next=cur? (cur==="dark"?"light":"dark") : (isDark?"light":"dark");
+  applyTheme(next); try{localStorage.setItem("vivispa-theme",next);}catch(e){}
+});
+
+// 啟動
+selectCity(0);
+citySel.value=0;
+</script>
+
+<script>
+/* ── 展店衝突檢測模組 ── */
+(function(){
+"use strict";
+const LS="vivispa-stores-v1";
+/* 示意門店（請替換為真實加盟店） */
+const SEED=[
+ {name:"VIVISPA 台北信義店",addr:"台北市信義區松仁路",lat:25.0336,lng:121.5645,seed:true},
+ {name:"VIVISPA 台北中山店",addr:"台北市中山區南京東路",lat:25.0520,lng:121.5330,seed:true},
+ {name:"VIVISPA 台中七期店",addr:"台中市西屯區市政路",lat:24.1612,lng:120.6418,seed:true},
+ {name:"VIVISPA 台中逢甲店",addr:"台中市西屯區福星路",lat:24.1787,lng:120.6465,seed:true},
+ {name:"VIVISPA 高雄左營店",addr:"高雄市左營區博愛二路",lat:22.6760,lng:120.3030,seed:true},
+];
+const coordRe=/^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
+const $=id=>document.getElementById(id);
+let stores=load();
+
+function load(){try{const s=localStorage.getItem(LS);if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length)return a;}}catch(e){} return SEED.map(x=>({...x}));}
+function save(){try{localStorage.setItem(LS,JSON.stringify(stores));}catch(e){}}
+
+function distM(a,b){const R=6371000,r=x=>x*Math.PI/180;
+ const dLa=r(b.lat-a.lat),dLo=r(b.lng-a.lng);
+ const s=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2;
+ return 2*R*Math.asin(Math.sqrt(s));}
+const fmtDist=m=>m<1000?Math.round(m)+" m":(m/1000).toFixed(2)+" km";
+const fmtR=m=>m<1000?m+" 公尺":(m/1000)+" 公里";
+
+async function geocode(q){
+ const u="https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=zh-TW&q="+encodeURIComponent(q);
+ const res=await fetch(u,{headers:{"Accept":"application/json"}});
+ if(!res.ok) throw new Error("定位服務無回應");
+ const j=await res.json();
+ if(!j.length) throw new Error("找不到此地址");
+ return {lat:+j[0].lat,lng:+j[0].lon,display:j[0].display_name};
+}
+function resolve(q){ // 回傳 Promise<{lat,lng,display}>
+ const c=q.match(coordRe);
+ if(c) return Promise.resolve({lat:+c[1],lng:+c[2],display:"座標 "+c[1]+", "+c[2]});
+ return geocode(q);
+}
+
+/* 地圖 */
+let map,storeLayer,candLayer,sized=false;
+function initMap(){
+ map=L.map("cmap",{scrollWheelZoom:false}).setView([23.9,120.9],7);
+ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
+ storeLayer=L.layerGroup().addTo(map);
+ candLayer=L.layerGroup().addTo(map);
+ drawStores(null);
+ setTimeout(()=>{map.invalidateSize();fitAll();},250);
+}
+function drawStores(hl){
+ if(!storeLayer)return;
+ storeLayer.clearLayers();
+ stores.forEach((s,i)=>{
+  const clash=hl&&hl.has(i);
+  L.circleMarker([s.lat,s.lng],{radius:8,weight:2,
+    color:clash?"#b4452f":"#0f6b5a",fillColor:clash?"#e8826b":"#2f9e86",fillOpacity:.92})
+   .bindPopup("<b>"+esc(s.name)+"</b><br>"+esc(s.addr||"")).addTo(storeLayer);
+ });
+}
+function fitAll(){
+ if(!stores.length)return;
+ try{map.fitBounds(L.latLngBounds(stores.map(s=>[s.lat,s.lng])).pad(0.25),{maxZoom:12});}catch(e){}
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* 門店清單 UI */
+function renderList(){
+ $("c-count").textContent="共 "+stores.length+" 家";
+ $("c-stores").innerHTML=stores.map((s,i)=>
+  '<div class="store-row"><span class="sn">'+esc(s.name)+'</span>'+
+  (s.seed?'<span class="seedtag">示意</span>':'')+
+  '<span class="sa">'+esc(s.addr||"")+'</span>'+
+  '<button data-i="'+i+'" title="刪除">✕</button></div>').join("")
+  || '<p class="muted">尚無門店，請新增。</p>';
+ $("c-stores").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+   stores.splice(+b.dataset.i,1);save();renderList();drawStores(null);fitAll();
+ }));
+}
+
+/* 檢測 */
+async function check(){
+ const q=$("c-addr").value.trim();
+ const res=$("c-result");
+ if(!q){res.innerHTML='<p class="muted">請先輸入地址。</p>';return;}
+ res.innerHTML='<p class="muted">定位中…</p>';
+ let loc;
+ try{loc=await resolve(q);}
+ catch(e){res.innerHTML='<div class="verdict clash"><span class="big">⚠</span><div>定位失敗：'+esc(e.message)+'。<br><small style="font-weight:500">可改輸入「緯度,經度」。</small></div></div>';return;}
+ const R=+$("c-radius").value;
+ const hits=stores.map((s,i)=>({s,i,d:distM(loc,s)})).filter(x=>x.d<R).sort((a,b)=>a.d-b.d);
+ const hl=new Set(hits.map(x=>x.i));
+ // 結果
+ if(hits.length){
+  res.innerHTML='<div class="verdict clash"><span class="big">⚠ '+hits.length+'</span><div>發現 '+hits.length+' 家可能衝突門店（距離 &lt; '+fmtR(R)+'）<br><small style="font-weight:500;color:var(--ink-soft)">'+esc(loc.display)+'</small></div></div>'+
+   '<div class="clash-list">'+hits.map(x=>
+     '<div class="clash-item"><div class="cn">'+esc(x.s.name)+'</div><div class="ca">'+esc(x.s.addr||"")+'</div>'+
+     '<div class="cd">'+fmtDist(x.d)+'<small>直線距離</small></div></div>').join("")+'</div>';
+ }else{
+  res.innerHTML='<div class="verdict clear"><span class="big">✓</span><div>無衝突<br><small style="font-weight:500;color:var(--ink-soft)">'+fmtR(R)+'保護範圍內無現有門店 · '+esc(loc.display)+'</small></div></div>';
+ }
+ // 地圖
+ candLayer.clearLayers();
+ L.circle([loc.lat,loc.lng],{radius:R,color:"#b08320",weight:2,dashArray:"5 5",fillColor:"#b08320",fillOpacity:.08}).addTo(candLayer);
+ L.circleMarker([loc.lat,loc.lng],{radius:10,weight:3,color:"#8a6612",fillColor:"#f5c542",fillOpacity:1})
+   .bindPopup("<b>預計展店點</b><br>"+esc(loc.display)).addTo(candLayer).openPopup();
+ drawStores(hl);
+ const pts=[[loc.lat,loc.lng]].concat(hits.map(x=>[x.s.lat,x.s.lng]));
+ map.invalidateSize();
+ if(pts.length>1){try{map.fitBounds(L.latLngBounds(pts).pad(0.5),{maxZoom:15});}catch(e){map.setView(pts[0],13);}}
+ else map.setView(pts[0],13);
+}
+
+/* 新增 */
+async function addStore(){
+ const n=$("c-sname").value.trim(),a=$("c-saddr").value.trim(),st=$("c-addstatus"),btn=$("c-add");
+ if(!n||!a){st.textContent="請填寫名稱與地址。";return;}
+ btn.disabled=true;st.textContent="定位中…";
+ let loc;
+ try{loc=await resolve(a);}catch(e){st.textContent="定位失敗："+e.message;btn.disabled=false;return;}
+ stores.push({name:n,addr:coordRe.test(a)?("座標 "+a):loc.display,lat:loc.lat,lng:loc.lng});
+ save();renderList();drawStores(null);fitAll();
+ $("c-sname").value="";$("c-saddr").value="";st.textContent="已新增「"+n+"」。";btn.disabled=false;
+}
+
+/* 整批匯入 */
+async function bulkImport(){
+ const lines=$("c-bulk").value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+ const st=$("c-importstatus"),btn=$("c-import");
+ if(!lines.length){st.textContent="請貼上資料。";return;}
+ btn.disabled=true;let ok=0,fail=0;
+ for(let i=0;i<lines.length;i++){
+  const parts=lines[i].split(",").map(s=>s.trim());
+  st.textContent="處理中 "+(i+1)+"/"+lines.length+"…";
+  try{
+   if(parts.length>=3&&!isNaN(+parts[parts.length-2])&&!isNaN(+parts[parts.length-1])){
+    const lng=+parts.pop(),lat=+parts.pop(),name=parts.join(",");
+    stores.push({name,addr:"座標 "+lat+", "+lng,lat,lng});ok++;
+   }else{
+    const name=parts.shift(),addr=parts.join(",");
+    if(!name||!addr){fail++;continue;}
+    const loc=await geocode(addr);
+    stores.push({name,addr:loc.display,lat:loc.lat,lng:loc.lng});ok++;
+    await new Promise(r=>setTimeout(r,1100)); // 遵守 Nominatim 速率
+   }
+  }catch(e){fail++;}
+ }
+ save();renderList();drawStores(null);fitAll();
+ $("c-bulk").value="";st.textContent="匯入完成：成功 "+ok+" 筆"+(fail?("，失敗 "+fail+" 筆"):"")+"。";btn.disabled=false;
+}
+
+/* 綁定 */
+function bind(){
+ $("c-go").addEventListener("click",check);
+ $("c-addr").addEventListener("keydown",e=>{if(e.key==="Enter")check();});
+ $("c-radius").addEventListener("input",e=>{$("c-rlab").textContent=fmtR(+e.target.value);});
+ $("c-add").addEventListener("click",addStore);
+ $("c-saddr").addEventListener("keydown",e=>{if(e.key==="Enter")addStore();});
+ $("c-import").addEventListener("click",bulkImport);
+ $("c-reset").addEventListener("click",()=>{stores=SEED.map(x=>({...x}));save();renderList();drawStores(null);fitAll();$("c-result").innerHTML='<p class="muted">已重設為示意資料。</p>';candLayer&&candLayer.clearLayers();});
+}
+
+if(typeof L==="undefined"){
+ $("cmap").innerHTML='<p class="muted" style="padding:20px">地圖元件載入失敗（需連網載入 Leaflet）。清單與衝突判定仍可運作。</p>';
+ renderList();bind();
+}else{
+ initMap();renderList();bind();
+ window.addEventListener("resize",()=>{if(map)map.invalidateSize();});
+}
+})();
+</script>
+</body>
+</html>
